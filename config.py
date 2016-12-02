@@ -54,6 +54,7 @@ class feature_configs(supersub_configs):
         '''
         self.video_features = video_features
         self.text_features = text_features
+        self.prefix_path_to_video_input = '/cs/vml4/smuralid/datasets/movieqa/story/video_clips/'
         if not prefix_path_to_features:
             self.prefix_path_to_features = '/cs/vml4/smuralid/datasets/movieqa/features'
         else:

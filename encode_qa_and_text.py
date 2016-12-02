@@ -5,7 +5,7 @@ import ipdb
 import pickle
 import word2vec as w2v
 import scipy.sparse as sps
-sys.path.append('/u/makarand/Codes/UToronto/skip-thoughts')
+sys.path.append('skip-thoughts')
 import skipthoughts
 import numpy as np
 import progressbar as pb
@@ -204,7 +204,7 @@ def one_pass_encoding(model, desc):
 
 if __name__ == '__main__':
     ### Variable types
-    documents = ['split_plot', 'script', 'subtitle', 'dvs']
+    documents = ['split_plot', 'script', 'subtitle']#, 'dvs']
     descriptors = ['tfidf', 'word2vec', 'skipthought'] #, 'vis-text-embed']
 
     # For each descriptor type
