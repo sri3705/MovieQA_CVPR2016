@@ -9,7 +9,7 @@ Training using cho et al. 2014 sequence to sequence model to improve feature rep
 Note: GRU needs to be used both on encoder and decoder sides
 '''
 class sent2q_featurizer:
-    def __init__(self, input_dim, embed_dim, model_filename, maxqlen=25, maxlen=100, batch_size=128, hiddensize=256, n_encoderlayers=1, n_decoderlayers=1, celltype='GRU', maxepochs=10):
+    def __init__(self, input_dim, embed_dim, model_filename, maxqlen=25, maxlen=100, batch_size=128, hiddensize=256, n_encoderlayers=1, n_decoderlayers=1, celltype='GRU', maxepochs=10, test_time=False):
         self.input_dim = input_dim
         self.maxlen = maxlen#on the encoder side
         self.maxqlen = maxqlen
@@ -22,6 +22,12 @@ class sent2q_featurizer:
         self.embed_dim = embed_dim
         self.maxepochs=maxepochs
         self.model_filename = model_filename
+        if test_time:
+            from keras.models import load_model
+            self.model = load_model(self.model_filename)
+            self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+            self.base_model = Model(input=self.model.input, output=self.model.get_layer('repeatvector_1').input)
+
 
 
     def build_model(self):
@@ -73,8 +79,5 @@ class sent2q_featurizer:
             self.model.save(self.model_filename)
 
     def compute_features(self, story):
-        from keras.models import load_model
-        self.model = load_model(self.model_filename)
-        self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-        base_model = Model(input=self.model.input, output=self.model.get_layer('repeatvector1').input)
-        return base_model.predict(story)
+        story_features = self.base_model.predict(story)
+        return story_features

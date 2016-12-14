@@ -15,8 +15,7 @@ from collections import Counter
 from optparse import OptionParser
 # Local imports
 from movieqa_importer import MovieQA
-from word_featurizer import sent2q_featurizer
-#from memN2N_text import MemoryNetwork
+from memN2N_precomputed_text_features import MemoryNetwork
 import utils
 
 # Seed random number generators
@@ -26,13 +25,14 @@ rng.seed(1234)
 w2v_mqa_model_filename = 'models/movie_plots_1364.d-300.mc1.w2v'
 
 
-def get_minibatch(batch_idx, stM, quesM, ansM, qinfo, mute_targets=False):
+def get_minibatch(batch_idx, stF, stM, quesM, ansM, qinfo, mute_targets=False):
     """Create one mini-batch from the data.
     Inputs:
         batch_idx - a vector of indices to select stories, questions from
 
     Returns:
         memorydata - batchsize X numsentence X numwords - story representation
+        featuredata - batchsize X numsentence X seq2seqFeatureDim - story feature
         inputq - batchsize X numwords - input question representation
         target - batchsize X 1 - correct answer indices during training 0-4
         multians - batchsize X 5 X numwords - multiple choice answer representations
@@ -40,11 +40,13 @@ def get_minibatch(batch_idx, stM, quesM, ansM, qinfo, mute_targets=False):
     """
 
     story_shape = stM.values()[0].shape
+    story_feature_shape = stF.values()[0].shape
     num_ma_opts = ansM.shape[1]
 
     inputq = np.zeros((len(batch_idx), quesM.shape[1]), dtype='int32')                             # question input vector
     target = np.zeros((len(batch_idx)), dtype='int32')                                             # answer (as a single number)
     memorydata = np.zeros((len(batch_idx), story_shape[0], story_shape[1]), dtype='int32')         # memory statements
+    featuredata = np.zeros((len(batch_idx), story_feature_shape[0], story_feature_shape[1]), dtype='int32')
     multians = np.zeros((len(batch_idx), num_ma_opts, ansM.shape[2]), dtype='int32')               # multiple choice answers
     b_qinfo = []
 
@@ -58,11 +60,12 @@ def get_minibatch(batch_idx, stM, quesM, ansM, qinfo, mute_targets=False):
         multians[b] = ansM[bi]   # get list of answers for this batch
         # get story data
         memorydata[b] = stM[qinfo[bi]['movie']]
+        featuredata[b] = stF[qinfo[bi]['movie']]
         # qinfo
         b_qinfo.append(qinfo[bi])
 
     
-    return memorydata, inputq, target, multians, b_qinfo
+    return memorydata, featuredata, inputq, target, multians, b_qinfo
 
 
 def count_errors(yhat, target):
@@ -87,10 +90,10 @@ def call_train_epoch(train_func, train_data, train_range, bs=8, lr=0.01, iterpri
         # get indices of this minibatch
         this_batch = train_perm[batch_count * bs : (batch_count + 1) * bs]
         # get minibatch
-        memorydata, inputq, target, multians, b_qinfo = \
-            get_minibatch(this_batch, train_data['s'], train_data['q'], train_data['a'], train_data['qinfo'])
+        memorydata, featuredata, inputq, target, multians, b_qinfo = \
+            get_minibatch(this_batch, train_data['f'], train_data['s'], train_data['q'], train_data['a'], train_data['qinfo'])
         # call train model
-        cost, yhat, g_norm, p_norm = train_func(memorydata, inputq, target, multians, lr)
+        cost, yhat, g_norm, p_norm = train_func(memorydata, featuredata, inputq, target, multians, lr)
         er = count_errors(yhat, target)
 
         # print iteration info
@@ -283,16 +286,13 @@ def seq2seq_preprocessor(story, question, qinfo):
     n_questions = question.shape[0]
     max_question_words = question.shape[1]
     max_story_words = story.values()[0].shape[1]
-    question_input = np.zeros((0, max_question_words), dtype=np.int32)
-    story_input = np.zeros((0, max_story_words))
+    stories = []
     for question_id in xrange(n_questions):
-        current_question = question[question_id]
         current_info = qinfo[question_id]
         current_story = story[current_info['movie']]
         n_sentences_indicator = np.sum(current_story, axis=1).tolist()
         n_sentences = sum([x>0 for x in n_sentences_indicator])
         current_story = current_story[:n_sentences]
-        current_question = np.repeat(current_question[np.newaxis], n_sentences, axis=0)
         question_input = np.concatenate((question_input, current_question))
         story_input = np.concatenate((story_input, current_story))
     return story_input, question_input
@@ -334,21 +334,26 @@ def main(options):
     qinfo = associate_additional_QA_info(QAs)
 
     ### Build preprocessor
-    preprocessor_story, preprocessor_question = seq2seq_preprocessor(storyM, questionM, qinfo)
-    preprocessor_story = preprocessor_story.astype('int32')
-    preprocessor_question = preprocessor_question.astype('int32')
     input_dim = len(w2v_model.vocab)
-    maxlen = preprocessor_story.shape[1]
-    embed_dim = 300
-    preprocessor = sent2q_featurizer(input_dim, embed_dim, maxlen=maxlen)
-    preprocessor.train(preprocessor_story, preprocessor_question)
-    from IPython.core.debugger import Tracer
-    Tracer()()
+    embed_dim = 'dummy'
+    model_filename = 'model_' + options['data']['source'] + '.h5'
+    
+    preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, test_time=True)
+    story_features = {}
+    pkl_filename = 'sent2q_' + options['data']['source'] + '.pkl'
+    import pickle as pkl
+    with open(pkl_filename) as f:
+        story_features = pkl.load(f)
+    f.close()
     ### Split everything into train, val, and test data
     train_storyM = {k:v for k, v in storyM.iteritems() if k in mqa.data_split['train']}
     val_storyM   = {k:v for k, v in storyM.iteritems() if k in mqa.data_split['val']}
     test_storyM  = {k:v for k, v in storyM.iteritems() if k in mqa.data_split['test']}
 
+    train_storyF = {k:v for k, v in storyF.iteritems() if k in mqa.data_split['train']}
+    val_storyF   = {k:v for k, v in storyF.iteritems() if k in mqa.data_split['val']}
+    test_storyF  = {k:v for k, v in storyF.iteritems() if k in mqa.data_split['test']}
+    
     def split_train_test(long_list, QAs, trnkey='train', tstkey='val'):
         # Create train/val/test splits based on key
         train_split = [item for k, item in enumerate(long_list) if QAs[k].qid.startswith('train')]
@@ -367,9 +372,9 @@ def main(options):
     QA_val   = [qa for qa in QAs if qa.qid.startswith('val:')]
     QA_test  = [qa for qa in QAs if qa.qid.startswith('test:')]
 
-    train_data = {'s':train_storyM, 'q':train_questionM, 'a':train_answerM, 'qinfo':train_qinfo}
-    val_data =   {'s':val_storyM,   'q':val_questionM,   'a':val_answerM,   'qinfo':val_qinfo}
-    test_data  = {'s':test_storyM,  'q':test_questionM,  'a':test_answerM,  'qinfo':test_qinfo}
+    train_data = {'s':train_storyM, 'q':train_questionM, 'a':train_answerM, 'qinfo':train_qinfo, 'f': train_storyF}
+    val_data =   {'s':val_storyM,   'q':val_questionM,   'a':val_answerM,   'qinfo':val_qinfo, 'f': val_storyF}
+    test_data  = {'s':test_storyM,  'q':test_questionM,  'a':test_answerM,  'qinfo':test_qinfo, 'f': test_storyF}
 
 
     ### Build model
@@ -484,8 +489,8 @@ if __name__ == '__main__':
     options = {'memnn':{}, 'train':{}, 'data':{}}
     # MemN2N options
     options['memnn']['num_mem_layers'] = opts.num_mem_layers    # number of memory layers
-    options['memnn']['embed_dimension'] = 300                   # learn LUT -- word embedding dimension
-    options['memnn']['d_lproj'] = 300                           # dimension for linear projection (100, 300)
+    options['memnn']['embed_dimension'] = 256                   # learn LUT -- word embedding dimension
+    options['memnn']['d_lproj'] = 256                          # dimension for linear projection (100, 300)
     # Training options
     options['train']['nepochs'] = opts.nepochs                  # number of train epochs
     options['train']['batch_size'] = opts.batch_size            # batch size

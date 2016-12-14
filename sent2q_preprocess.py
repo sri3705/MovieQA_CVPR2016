@@ -297,8 +297,6 @@ def seq2seq_preprocessor(story, question, qinfo):
         story_input = np.concatenate((story_input, current_story))
         if (question_id+1) % 100 == 1:
             print 'Generating inputs for %dth question'%(question_id)
-    print story_input.shape
-    print question_input.shape
     return story_input, question_input
 
 def main(options):
@@ -343,11 +341,23 @@ def main(options):
     preprocessor_question = preprocessor_question.astype('int32')
     input_dim = len(w2v_model.vocab)
     maxlen = preprocessor_story.shape[1]
-    embed_dim = 300
-    model_filename = 'model_' + options['memnn']['source'] + '.h5'
-    preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, maxlen=maxlen)
+    maxqlen = preprocessor_question.shape[1]
+    model_filename = 'model_' + options['data']['source'] + '.h5'
+    preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, maxlen=maxlen, maxqlen=maxqlen)
     preprocessor.train(preprocessor_story, preprocessor_question)
-
+    del preprocessor
+    preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, test_time=True)
+    story_features = {}
+    for key_id, keyname in enumerate(storyM.keys()):
+        current_story = storyM[keyname]
+        story_features[keyname] = preprocessor.compute_features(current_story)
+        if key_id % 10 == 0:
+            print 'Extracting features for %dth movie' % key_id
+    import pickle as pkl
+    pkl_filename = 'sent2q_' + options['data']['source'] + '.pkl'
+    with open(pkl_filename, 'w') as f:
+        pkl.dump(story_features, f)
+    f.close()
 
 def init_option_parser():
     """Initialize parser.
