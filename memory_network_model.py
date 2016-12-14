@@ -46,7 +46,7 @@ def get_minibatch(batch_idx, stF, stM, quesM, ansM, qinfo, mute_targets=False):
     inputq = np.zeros((len(batch_idx), quesM.shape[1]), dtype='int32')                             # question input vector
     target = np.zeros((len(batch_idx)), dtype='int32')                                             # answer (as a single number)
     memorydata = np.zeros((len(batch_idx), story_shape[0], story_shape[1]), dtype='int32')         # memory statements
-    featuredata = np.zeros((len(batch_idx), story_feature_shape[0], 1, story_feature_shape[1]), dtype='float32')
+    featuredata = np.zeros((len(batch_idx), story_feature_shape[0], story_feature_shape[1]), dtype='float32')
     multians = np.zeros((len(batch_idx), num_ma_opts, ansM.shape[2]), dtype='int32')               # multiple choice answers
     b_qinfo = []
 
@@ -60,7 +60,7 @@ def get_minibatch(batch_idx, stF, stM, quesM, ansM, qinfo, mute_targets=False):
         multians[b] = ansM[bi]   # get list of answers for this batch
         # get story data
         memorydata[b] = stM[qinfo[bi]['movie']]
-        featuredata[b] = stF[qinfo[bi]['movie']].reshape((1, story_shape[0], 1, -1))
+        featuredata[b] = stF[qinfo[bi]['movie']]#.reshape((1, story_shape[0], 1, -1))
         # qinfo
         b_qinfo.append(qinfo[bi])
 
@@ -141,11 +141,9 @@ def call_test(test_func, test_data, data_range=None, bs=8):
 
         # get minibatch
         memorydata, featuredata, inputq, target, multians, b_qinfo = \
-            get_minibatch(this_batch, train_data['f'], test_data['s'], test_data['q'], test_data['a'], test_data['qinfo'], mute_targets=mute_targets)
+            get_minibatch(this_batch, test_data['f'], test_data['s'], test_data['q'], test_data['a'], test_data['qinfo'], mute_targets=mute_targets)
         # call test function
-        print featuredata.shape
-        sys.exit()
-        yhat = test_func(memorydata, inputq, multians)
+        yhat = test_func(memorydata, featuredata, inputq, multians)
         if data_range:  # train-val
             er = count_errors(yhat, target)
             test_error += er
@@ -488,7 +486,7 @@ if __name__ == '__main__':
     # MemN2N options
     options['memnn']['num_mem_layers'] = opts.num_mem_layers    # number of memory layers
     options['memnn']['embed_dimension'] = 300                   # learn LUT -- word embedding dimension
-    options['memnn']['d_lproj'] = 256                          # dimension for linear projection (100, 300)
+    options['memnn']['d_lproj'] = 300                          # dimension for linear projection (100, 300)
     # Training options
     options['train']['nepochs'] = opts.nepochs                  # number of train epochs
     options['train']['batch_size'] = opts.batch_size            # batch size

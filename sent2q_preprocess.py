@@ -343,6 +343,7 @@ def main(options):
     maxlen = preprocessor_story.shape[1]
     maxqlen = preprocessor_question.shape[1]
     model_filename = 'model_' + options['data']['source'] + '.h5'
+    embed_dim = 256
     preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, maxlen=maxlen, maxqlen=maxqlen)
     preprocessor.train(preprocessor_story, preprocessor_question)
     del preprocessor
@@ -399,21 +400,11 @@ if __name__ == '__main__':
     # -------------------------------------------------------
     options = {'memnn':{}, 'train':{}, 'data':{}}
     # MemN2N options
-    options['memnn']['num_mem_layers'] = opts.num_mem_layers    # number of memory layers
-    options['memnn']['embed_dimension'] = 300                   # learn LUT -- word embedding dimension
-    options['memnn']['d_lproj'] = 300                           # dimension for linear projection (100, 300)
-    # Training options
     options['train']['nepochs'] = opts.nepochs                  # number of train epochs
     options['train']['batch_size'] = opts.batch_size            # batch size
     options['train']['learning_rate'] = opts.learning_rate      # learning rate
-    options['train']['lrdecay'] = [0.9, 10]                     # every [10] epochs, lr = lr * [0.9]
-    options['train']['validate_after'] = 1                      # number of epochs to run validation after
     options['train']['gnorm'] = {'max_norm': 40}                # gradient normalization options 'max_norm' OR 'clip'
     # Data options
-    options['data']['evaluation_set'] = opts.evaluation_set     # Evaluation set (val|test)
-    options['data']['source'] = opts.story_source               # use this data source for answering questions
-    options['data']['learn_LUT'] = False                        # learn / load LUTs -- depending on data source
-    options['data']['vocab_threshold'] = 1                      # word must occur >= N times for it to be part of vocabulary
 
     ### Deprecated - keep code simpler!
     # options['mode'] = 'multi_choice'                          # QA mode, 'single' vs. 'multi_choice'

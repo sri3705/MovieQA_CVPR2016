@@ -160,7 +160,7 @@ class MemoryNetwork(object):
 
         # ------ Input Data
         T_story = T.itensor3('story')   # batch-size X sentences X words
-        T_story_feature = T.ftensor4('story_feature') #batch-size X sentences X 1 X story_featuredim
+        T_story_feature = T.ftensor3('story_feature') #batch-size X sentences X story_featuredim
         T_q = T.imatrix('q')            # batch-size X words
         T_y = T.ivector('y_gt')         # batch-size ('single': word index,  'multi_choice': correct option)
         T_z = T.itensor3('z')           # batch-size X multiple options X words
@@ -257,7 +257,7 @@ class MemoryNetwork(object):
 
         train_model = theano.function(inputs=[p for k, p in self.t_inputs.iteritems()],
                                       outputs=[self.t_outputs['T_cost'], self.t_outputs['T_yhat'],
-                                               self.out_gnorm, self.out_pnorm],
+                                          self.out_gnorm, self.out_pnorm],
                                       # mode=theano.compile.DebugMode,
                                       # mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True),
                                       # mode='FAST_COMPILE',
