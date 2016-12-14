@@ -46,7 +46,7 @@ def get_minibatch(batch_idx, stF, stM, quesM, ansM, qinfo, mute_targets=False):
     inputq = np.zeros((len(batch_idx), quesM.shape[1]), dtype='int32')                             # question input vector
     target = np.zeros((len(batch_idx)), dtype='int32')                                             # answer (as a single number)
     memorydata = np.zeros((len(batch_idx), story_shape[0], story_shape[1]), dtype='int32')         # memory statements
-    featuredata = np.zeros((len(batch_idx), story_feature_shape[0], story_feature_shape[1]), dtype='int32')
+    featuredata = np.zeros((len(batch_idx), story_feature_shape[0], 1, story_feature_shape[1]), dtype='float32')
     multians = np.zeros((len(batch_idx), num_ma_opts, ansM.shape[2]), dtype='int32')               # multiple choice answers
     b_qinfo = []
 
@@ -60,11 +60,10 @@ def get_minibatch(batch_idx, stF, stM, quesM, ansM, qinfo, mute_targets=False):
         multians[b] = ansM[bi]   # get list of answers for this batch
         # get story data
         memorydata[b] = stM[qinfo[bi]['movie']]
-        featuredata[b] = stF[qinfo[bi]['movie']]
+        featuredata[b] = stF[qinfo[bi]['movie']].reshape((1, story_shape[0], 1, -1))
         # qinfo
         b_qinfo.append(qinfo[bi])
 
-    
     return memorydata, featuredata, inputq, target, multians, b_qinfo
 
 
@@ -141,9 +140,11 @@ def call_test(test_func, test_data, data_range=None, bs=8):
             this_batch = range(batch_count * bs, min( (batch_count+1) * bs, len(test_data['qinfo']) ))
 
         # get minibatch
-        memorydata, inputq, target, multians, b_qinfo = \
-            get_minibatch(this_batch, test_data['s'], test_data['q'], test_data['a'], test_data['qinfo'], mute_targets=mute_targets)
+        memorydata, featuredata, inputq, target, multians, b_qinfo = \
+            get_minibatch(this_batch, train_data['f'], test_data['s'], test_data['q'], test_data['a'], test_data['qinfo'], mute_targets=mute_targets)
         # call test function
+        print featuredata.shape
+        sys.exit()
         yhat = test_func(memorydata, inputq, multians)
         if data_range:  # train-val
             er = count_errors(yhat, target)
@@ -337,13 +338,10 @@ def main(options):
     input_dim = len(w2v_model.vocab)
     embed_dim = 'dummy'
     model_filename = 'model_' + options['data']['source'] + '.h5'
-    
-    preprocessor = sent2q_featurizer(input_dim, embed_dim, model_filename, test_time=True)
-    story_features = {}
     pkl_filename = 'sent2q_' + options['data']['source'] + '.pkl'
     import pickle as pkl
     with open(pkl_filename) as f:
-        story_features = pkl.load(f)
+        storyF = pkl.load(f)
     f.close()
     ### Split everything into train, val, and test data
     train_storyM = {k:v for k, v in storyM.iteritems() if k in mqa.data_split['train']}
@@ -489,7 +487,7 @@ if __name__ == '__main__':
     options = {'memnn':{}, 'train':{}, 'data':{}}
     # MemN2N options
     options['memnn']['num_mem_layers'] = opts.num_mem_layers    # number of memory layers
-    options['memnn']['embed_dimension'] = 256                   # learn LUT -- word embedding dimension
+    options['memnn']['embed_dimension'] = 300                   # learn LUT -- word embedding dimension
     options['memnn']['d_lproj'] = 256                          # dimension for linear projection (100, 300)
     # Training options
     options['train']['nepochs'] = opts.nepochs                  # number of train epochs

@@ -53,15 +53,17 @@ class MemoryLayer(object):
         """
 
         # ------ Encode encoder story data
-        T_w2v_out = self.T_w2v[T_story] * T_mask[T_story]
-        T_m = T.sum(T_w2v_out, axis=2)
+        #T_w2v_out = self.T_w2v[T_story] * T_mask[T_story]
+        #T_m = T.sum(T_w2v_out, axis=2)
+        T_m = T_story
         T_m_norm = T.sqrt(T.sum(T_m ** 2, axis=2))
         T_m = T_m / (T_m_norm.dimshuffle(0, 1, 'x') + 1e-6)
         T_m = T.dot(T_m, n_params['T_B'])
 
         # ------ Encode decoder story data
-        T_w2v_out = self.T_w2v[T_story] * T_mask[T_story]
-        T_c = T.sum(T_w2v_out, axis=2)
+        #T_w2v_out = self.T_w2v[T_story] * T_mask[T_story]
+        #T_c = T.sum(T_w2v_out, axis=2)
+        T_c = T_story
         T_c_norm = T.sqrt(T.sum(T_c ** 2, axis=2))
         T_c = T_c / (T_c_norm.dimshuffle(0, 1, 'x') + 1e-6)
         T_c = T.dot(T_c, n_params['T_B'])
@@ -158,7 +160,7 @@ class MemoryNetwork(object):
 
         # ------ Input Data
         T_story = T.itensor3('story')   # batch-size X sentences X words
-        T_story_feature = T.ftensor3('story_feature') #batch-size X sentences X story_featuredim
+        T_story_feature = T.ftensor4('story_feature') #batch-size X sentences X 1 X story_featuredim
         T_q = T.imatrix('q')            # batch-size X words
         T_y = T.ivector('y_gt')         # batch-size ('single': word index,  'multi_choice': correct option)
         T_z = T.itensor3('z')           # batch-size X multiple options X words
@@ -183,7 +185,7 @@ class MemoryNetwork(object):
         # ------ Layers of memory and attention interaction
         for n in range(self.nl):
             # Add one layer of memory
-            T_o, T_p = mem_layer.make_layer(self.t_params, T_u, T_story, self.T_mask, self.rng)
+            T_o, T_p = mem_layer.make_layer(self.t_params, T_u, T_story_feature, self.T_mask, self.rng)
             T_u = T_u + T_o
 
         self.out_debug = T_p
